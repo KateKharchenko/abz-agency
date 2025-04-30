@@ -21,7 +21,9 @@ RUN composer install --no-dev --optimize-autoloader
 # Expose port
 EXPOSE 8080
 
-# Start Laravel server with artisan
-CMD php artisan key:generate && \
+CMD ["/bin/sh", "-c", "\
+    [ -f .env ] || php -r \"file_put_contents('.env', file_get_contents('.env.example'));\" && \
+    php artisan key:generate && \
     php artisan migrate --force && \
-    php artisan serve --host=0.0.0.0 --port=8080
+    php artisan serve --host=0.0.0.0 --port=8080"]
+
