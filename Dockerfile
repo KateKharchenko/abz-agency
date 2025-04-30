@@ -12,18 +12,39 @@ COPY --from=composer:2 /usr/bin/composer /usr/bin/composer
 # Set working directory
 WORKDIR /var/www
 
-# Copy Laravel project files
+# Copy app files
 COPY . .
 
-# Install dependencies
+# Install Laravel dependencies
 RUN composer install --no-dev --optimize-autoloader
 
 # Expose port
 EXPOSE 8080
 
+# Custom startup script
 CMD ["/bin/sh", "-c", "\
-    [ -f .env ] || php -r \"file_put_contents('.env', file_get_contents('.env.example'));\" && \
-    php artisan key:generate && \
+    # Create .env from .env.example if missing \
+    if [ ! -f .env ]; then \
+      echo 'Creating .env file...'; \
+      cp .env.example .env; \
+    fi && \
+    \
+    # Generate app key if not set \
+    if ! grep -q '^APP_KEY=' .env || grep -q '^APP_KEY=$' .env; then \
+      echo 'Generating APP_KEY...'; \
+      php artisan key:generate; \
+    fi && \
+    \
+    # Run migrations \
     php artisan migrate --force && \
+    \
+    # Check if database is empty and run seeders only once \
+    if [ \"$(php artisan db:seed:status | grep 'Ran?' | grep -c 'No')\" -gt 0 ]; then \
+      echo 'Running seeders...'; \
+      php artisan db:seed --force; \
+    else \
+      echo 'Seeders already ran. Skipping.'; \
+    fi && \
+    \
+    # Start Laravel dev server \
     php artisan serve --host=0.0.0.0 --port=8080"]
-
